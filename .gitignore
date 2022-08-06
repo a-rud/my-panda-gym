@@ -7,3 +7,4 @@ _build/
 build/
 .DS_Store
 sandbox
+.idea/
