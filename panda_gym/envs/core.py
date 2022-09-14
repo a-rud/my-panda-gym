@@ -255,7 +255,7 @@ class RobotTaskEnv(gym.GoalEnv):
             "desired_goal": self.task.get_goal(),
         }
 
-    def reset(self) -> Dict[str, np.ndarray]:
+    def reset(self, **kwargs) -> Dict[str, np.ndarray]:
         with self.sim.no_rendering():
             self.robot.reset()
             self.task.reset()
