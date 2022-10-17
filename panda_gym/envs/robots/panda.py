@@ -135,3 +135,53 @@ class Panda(PyBulletRobot):
     def get_ee_velocity(self) -> np.ndarray:
         """Returns the velocity of the end-effector as (vx, vy, vz)"""
         return self.get_link_velocity(self.ee_link)
+
+    # def get_jacobian(self):
+    #     num_joints = 7
+    #     assert isinstance(self.sim, PyBullet)
+    #
+    #
+    #
+    #
+    #     # Set a joint target for the position control and step the sim.
+    #     self.sim.physics_client.setJointPosition(kukaId, [0.1] * num_joints)
+    #     p.stepSimulation()
+    #
+    #     # Get the joint and link state directly from Bullet.
+    #     pos, vel, torq = getJointStates(kukaId)
+    #     mpos, mvel, mtorq = getMotorJointStates(kukaId)
+    #
+    #     result = p.getLinkState(kukaId,
+    #                             kukaEndEffectorIndex,
+    #                             computeLinkVelocity=1,
+    #                             computeForwardKinematics=1)
+    #     link_trn, link_rot, com_trn, com_rot, frame_pos, frame_rot, link_vt, link_vr = result
+    #     # Get the Jacobians for the CoM of the end-effector link.
+    #     # Note that in this example com_rot = identity, and we would need to use com_rot.T * com_trn.
+    #     # The localPosition is always defined in terms of the link frame coordinates.
+    #
+    #     zero_vec = [0.0] * len(mpos)
+    #     jac_t, jac_r = p.calculateJacobian(kukaId, kukaEndEffectorIndex, com_trn, mpos, zero_vec, zero_vec)
+    #
+    #
+    #     """
+    #     calculateJacobian requires:
+    #
+    #     bodyUniqueId int                body unique id, as returned by loadURDF etc.
+    #     linkIndex int                   link index for the jacobian.
+    #     localPosition list of float     the point on the specified link to compute the jacobian for, in
+    #                                     link local coordinates around its center of mass.
+    #     objPositions list of float      joint positions (angles)
+    #     objVelocities list of float     joint velocities
+    #     objAccelerations list of float  desired joint accelerations
+    #     """
+    #
+    #     J = self.sim.physics_client.calculateJacobian(
+    #         self.sim._bodies_idx[self.body_name],
+    #         self.ee_link,
+    #         self.get_ee_position(),
+    #         [self.get_joint_angle(idx) for idx in range(7)],
+    #         [self.get_joint_velocity(idx) for idx in range(7)],
+    #         [0] * 7
+    #     )
+    #     return J

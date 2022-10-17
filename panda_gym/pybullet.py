@@ -329,11 +329,25 @@ class PyBullet:
         Returns:
             np.ndarray: The new joint state.
         """
+        # # lower limits for null space
+        # ll = [-.967, -2, -2.96, -2.29, -2.96, -2.09, -3.05]
+        # # upper limits for null space
+        # ul = [0.967, 2, 2.96, 2.29, 2.96, 2.09, 3.05]
+        # # joint ranges for null space
+        # jr = [5.8, 4, 5.8, 4, 5.8, 4, 6]
+        # # restposes for null space
+        # rp = [0.00, 0.41, 0.00, -1.85, 0.00, 2.26, 0.79, 0.00, 0.00]
+        # # joint damping coefficents
+        # jd = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
         joint_state = self.physics_client.calculateInverseKinematics(
             bodyIndex=self._bodies_idx[body],
             endEffectorLinkIndex=link,
             targetPosition=position,
             targetOrientation=orientation,
+            # lowerLimits=ll,
+            # upperLimits=ul,
+            # jointRanges=jr,
+            # restPoses=rp
         )
         return np.array(joint_state)
 
@@ -630,3 +644,14 @@ class PyBullet:
             linkIndex=link,
             spinningFriction=spinning_friction,
         )
+
+    # def get_jacobian(self):
+    #     J = self.physics_client.calculateJacobian(
+    #         self._bodies_idx[body_name],
+    #         self.ee_link,
+    #         self.get_ee_position(),
+    #         [self.get_joint_angle(idx) for idx in range(7)],
+    #         [self.get_joint_velocity(idx) for idx in range(7)],
+    #         [0]*7
+    #     )
+    #     return J
