@@ -317,6 +317,23 @@ class PyBullet:
             forces=forces,
         )
 
+    def velocity_control_joints(self, body: str, joints: np.ndarray, target_velocity: np.ndarray, forces: np.ndarray) -> None:
+        """Control the joints motor.
+
+        Args:
+            body (str): Body unique name.
+            joints (np.ndarray): List of joint indices, as a list of ints.
+            target_angles (np.ndarray): List of target angles, as a list of floats.
+            forces (np.ndarray): Forces to apply, as a list of floats.
+        """
+        self.physics_client.setJointMotorControlArray(
+            self._bodies_idx[body],
+            jointIndices=joints,
+            controlMode=self.physics_client.VELOCITY_CONTROL,
+            targetVelocities=target_velocity,
+            forces=forces,
+        )
+
     def inverse_kinematics(self, body: str, link: int, position: np.ndarray, orientation: np.ndarray) -> np.ndarray:
         """Compute the inverse kinematics and return the new joint state.
 

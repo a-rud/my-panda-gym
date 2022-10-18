@@ -17,14 +17,18 @@ class Panda(PyBulletRobot):
     """
 
     def __init__(
-        self,
-        sim: PyBullet,
-        block_gripper: bool = False,
-        base_position: np.ndarray = np.array([0.0, 0.0, 0.0]),
-        control_type: str = "ee",
+            self,
+            sim: PyBullet,
+            block_gripper: bool = False,
+            base_position: np.ndarray = np.array([0.0, 0.0, 0.0]),
+            control_type: str = "ee",
+            velocity_control: bool = False,
+            redundancy_resolution: bool = False,
     ) -> None:
         self.block_gripper = block_gripper
         self.control_type = control_type
+        self.velocity_control = velocity_control
+        self.use_redundancy_resolution = redundancy_resolution
         n_action = 3 if self.control_type == "ee" else 7  # control (x, y z) if "ee", else, control the 7 joints
         n_action += 0 if self.block_gripper else 1
         action_space = spaces.Box(-1.0, 1.0, shape=(n_action,), dtype=np.float32)
@@ -49,22 +53,39 @@ class Panda(PyBulletRobot):
     def set_action(self, action: np.ndarray) -> None:
         action = action.copy()  # ensure action don't change
         action = np.clip(action, self.action_space.low, self.action_space.high)
-        if self.control_type == "ee":
-            ee_displacement = action[:3]
-            target_arm_angles = self.ee_displacement_to_target_arm_angles(ee_displacement)
-        else:
-            arm_joint_ctrl = action[:7]
-            target_arm_angles = self.arm_joint_ctrl_to_target_arm_angles(arm_joint_ctrl)
+        if self.velocity_control:
+            if self.control_type == "ee":
+                raise NotImplementedError("Velocity control is not supported in EE control atm.")
+            else:
+                arm_joint_ctrl = action[:7]
+                if self.use_redundancy_resolution:
+                    raise NotImplementedError("Redundancy resolution not yet implemented")
+                # target_velocities = self.arm_joint_ctrl_to_target_arm_angles(arm_joint_ctrl)
 
-        if self.block_gripper:
-            target_fingers_width = 0
-        else:
-            fingers_ctrl = action[-1] * 0.2  # limit maximum change in position
-            fingers_width = self.get_fingers_width()
-            target_fingers_width = fingers_width + fingers_ctrl
+            if self.block_gripper:
+                fingers_ctrl = -0.0001
+            else:
+                fingers_ctrl = action[-1] * 0.2  # limit maximum change in position
 
-        target_angles = np.concatenate((target_arm_angles, [target_fingers_width / 2, target_fingers_width / 2]))
-        self.control_joints(target_angles=target_angles)
+            target_velocities = np.concatenate((arm_joint_ctrl, [fingers_ctrl, -fingers_ctrl]))
+            self.velocity_control_joints(target_velocity=target_velocities)
+        else:
+            if self.control_type == "ee":
+                ee_displacement = action[:3]
+                target_arm_angles = self.ee_displacement_to_target_arm_angles(ee_displacement)
+            else:
+                arm_joint_ctrl = action[:7]
+                target_arm_angles = self.arm_joint_ctrl_to_target_arm_angles(arm_joint_ctrl)
+
+            if self.block_gripper:
+                target_fingers_width = 0
+            else:
+                fingers_ctrl = action[-1] * 0.2  # limit maximum change in position
+                fingers_width = self.get_fingers_width()
+                target_fingers_width = fingers_width + fingers_ctrl
+
+            target_angles = np.concatenate((target_arm_angles, [target_fingers_width / 2, target_fingers_width / 2]))
+            self.control_joints(target_angles=target_angles)
 
     def ee_displacement_to_target_arm_angles(self, ee_displacement: np.ndarray) -> np.ndarray:
         """Compute the target arm angles from the end-effector displacement.
