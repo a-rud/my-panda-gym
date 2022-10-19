@@ -137,6 +137,19 @@ class PyBulletRobot(ABC):
             forces=self.joint_forces,
         )
 
+    def velocity_control_joints(self, target_velocity: np.ndarray) -> None:
+        """Control the joints of the robot.
+
+        Args:
+            target_velocity (np.ndarray): The target velocity. The length of the array must equal to the number of joints.
+        """
+        self.sim.velocity_control_joints(
+            body=self.body_name,
+            joints=self.joint_indices,
+            target_velocity=target_velocity,
+            forces=self.joint_forces,
+        )
+
     def set_joint_angles(self, angles: np.ndarray) -> None:
         """Set the joint position of a body. Can induce collisions.
 
@@ -246,7 +259,7 @@ class RobotTaskEnv(gym.GoalEnv):
 
     def _get_obs(self) -> Dict[str, np.ndarray]:
         robot_obs = self.robot.get_obs()  # robot state
-        task_obs = self.task.get_obs()  # object position, velococity, etc...
+        task_obs = self.task.get_obs()  # object position, velocity, etc...
         observation = np.concatenate([robot_obs, task_obs])
         achieved_goal = self.task.get_achieved_goal()
         return {
