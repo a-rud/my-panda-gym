@@ -63,11 +63,11 @@ class Panda(PyBulletRobot):
                 # target_velocities = self.arm_joint_ctrl_to_target_arm_angles(arm_joint_ctrl)
 
             if self.block_gripper:
-                fingers_ctrl = -0.0001
+                fingers_ctrl = -0.01
             else:
                 fingers_ctrl = action[-1] * 0.2  # limit maximum change in position
 
-            target_velocities = np.concatenate((arm_joint_ctrl, [fingers_ctrl, -fingers_ctrl]))
+            target_velocities = np.concatenate((arm_joint_ctrl, [fingers_ctrl, fingers_ctrl]))
             self.velocity_control_joints(target_velocity=target_velocities)
         else:
             if self.control_type == "ee":
@@ -158,32 +158,105 @@ class Panda(PyBulletRobot):
         return self.get_link_velocity(self.ee_link)
 
     # def get_jacobian(self):
+    #     """
+    #     This function is very closely adapted from the PyBullet examples. Can be found under
+    #     https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/examples/jacobian.py
+    #     Inside the Bullet repository: bullet3/examples/pybullet/examples/jacobian.py
+    #
+    #     Returns:
+    #
+    #     """
     #     num_joints = 7
-    #     assert isinstance(self.sim, PyBullet)
+    #     assert isinstance(self.sim, PyBullet), f"Simulation must be type PyBullet but got f{type(self.sim)} instead."
     #
+    #     def getMotorJointStates(robot):
+    #         """
+    #         getJointStates output:
+    #         jointPosition:              The position value of this joint.
+    #         jointVelocity:              The velocity value of this joint.
+    #         jointReactionForces:        These are the joint reaction forces, if a torque sensor is enabled for this joint it
+    #                                     is [Fx, Fy, Fz, Mx, My, Mz]. Without torque sensor, it is [0,0,0,0,0,0].
+    #         appliedJointMotorTorque:    This is the motor torque applied during the last stepSimulation
+    #         """
+    #         joint_states_all = self.sim.physics_client.getJointStates(robot, range(num_joints))
+    #         """
+    #         getJointInfo output:
+    #         jointIndex:         the same joint index as the input parameter
+    #         jointName:          the name of the joint, as specified in the URDF (or SDF etc) file
+    #         jointType:          type of the joint, this also implies the number of position and velocity variables.
+    #         qIndex:             the first position index in the positional state variables for this body
+    #         uIndex:             the first velocity index in the velocity state variables for this body
+    #         """
+    #         joint_infos = [self.sim.physics_client.getJointInfo(robot, i) for i in range(num_joints)]
+    #         joint_states = [j for j, i in zip(joint_states_all, joint_infos) if i[3] > -1]
+    #         joint_positions = [state[0] for state in joint_states]
+    #         joint_velocities = [state[1] for state in joint_states]
+    #         joint_torques = [state[3] for state in joint_states]
+    #         return joint_positions, joint_velocities, joint_torques
     #
-    #
-    #
-    #     # Set a joint target for the position control and step the sim.
-    #     self.sim.physics_client.setJointPosition(kukaId, [0.1] * num_joints)
-    #     p.stepSimulation()
+    #     def multiplyJacobian3D(robot, jacobian, vector):
+    #         result = [0.0, 0.0, 0.0]
+    #         i = 0
+    #         joint_infos = [p.getJointInfo(robot, i) for i in range(len(vector))]
+    #         for c in range(len(vector)):
+    #             info = joint_infos[c]
+    #             if info[3] > -1:
+    #                 for r in range(3):
+    #                     result[r] += jacobian[r][i] * vector[c]
+    #                 i += 1
+    #         return result
     #
     #     # Get the joint and link state directly from Bullet.
     #     pos, vel, torq = getJointStates(kukaId)
     #     mpos, mvel, mtorq = getMotorJointStates(kukaId)
     #
-    #     result = p.getLinkState(kukaId,
-    #                             kukaEndEffectorIndex,
-    #                             computeLinkVelocity=1,
-    #                             computeForwardKinematics=1)
-    #     link_trn, link_rot, com_trn, com_rot, frame_pos, frame_rot, link_vt, link_vr = result
-    #     # Get the Jacobians for the CoM of the end-effector link.
-    #     # Note that in this example com_rot = identity, and we would need to use com_rot.T * com_trn.
-    #     # The localPosition is always defined in terms of the link frame coordinates.
-    #
     #     zero_vec = [0.0] * len(mpos)
-    #     jac_t, jac_r = p.calculateJacobian(kukaId, kukaEndEffectorIndex, com_trn, mpos, zero_vec, zero_vec)
+    #     jac_t, jac_r = p.calculateJacobian(
+    #         bodyUniqueId=kukaId,
+    #         linkIndex=kukaEndEffectorIndex,
+    #         localPosition=com_trn,
+    #         objPositions=mpos,
+    #         objVelocities=zero_vec,
+    #         objAccelerations=zero_vec
+    #     )
     #
+    #     # Motor state
+    #     mpos, mvel, mtorq = getMotorJointStates(self.sim._bodies_idx[self.body_name])
+    #
+    #     """
+    #         FROM PYBULLET DOC:
+    #     position_linkcom_world, world_rotation_linkcom,
+    #     position_linkcom_frame, frame_rotation_linkcom,
+    #     position_frame_world, world_rotation_frame,
+    #     linearVelocity_linkcom_world, angularVelocity_linkcom_world
+    #       = getLinkState(objectUniqueId, linkIndex, computeLinkVelocity=0,
+    #                      computeForwardKinematics=0, physicsClientId=0)
+    #     Provides extra information such as the Cartesian world coordinates center of mass (COM) of the link, relative to the world reference frame.
+    #     """
+    #     linkstate = self.sim.physics_client.getLinkState(
+    #         bodyUniqueId=self.sim._bodies_idx[self.body_name],
+    #         linkIndex=self.ee_link,
+    #         computeLinkVelocity=1,
+    #         computeForwardKinematics=1
+    #     )
+    #     link_trn, link_rot, com_trn, com_rot, frame_pos, frame_rot, link_vt, link_vr = linkstate
+    #     """
+    #         FROM QUICKSTART GUIDE:
+    #     link_trn    =   linkWorldPosition               (Cartesian position of center of mass)
+    #     link_rot    =   linkWorldOrientation            (Cartesian orientation of center of mass, in
+    #                                                     quaternion [x,y,z,w])
+    #     com_trn     =   localInertialFramePosition      (local position offset of inertial frame (center of mass)
+    #                                                     expressed in the URDF link frame)
+    #     com_rot     =   localInertialFrameOrientation   (local orientation (quaternion [x,y,z,w]) offset of the inertial
+    #                                                     frame expressed in URDF link frame.)
+    #     frame_pos   =   worldLinkFramePosition          (world position of the URDF link frame)
+    #     frame_rot   =   worldLinkFrameOrientation       (world orientation of the URDF link frame)
+    #     link_vt     =   worldLinkLinearVelocity         (Cartesian world velocity. Only returned if computeLinkVelocity
+    #                                                     non-zero)
+    #     link_vr     =   worldLinkAngularVelocity        (Cartesian world velocity. Only returned if computeLinkVelocity
+    #                                                     non-zero)
+    #
+    #     """
     #
     #     """
     #     calculateJacobian requires:
@@ -196,13 +269,16 @@ class Panda(PyBulletRobot):
     #     objVelocities list of float     joint velocities
     #     objAccelerations list of float  desired joint accelerations
     #     """
-    #
+    #     # Get the Jacobians for the CoM of the end-effector link.
+    #     # Note that in this example com_rot = identity, and we would need to use com_rot.T * com_trn.
+    #     # The localPosition is always defined in terms of the link frame coordinates.
     #     J = self.sim.physics_client.calculateJacobian(
-    #         self.sim._bodies_idx[self.body_name],
-    #         self.ee_link,
-    #         self.get_ee_position(),
-    #         [self.get_joint_angle(idx) for idx in range(7)],
-    #         [self.get_joint_velocity(idx) for idx in range(7)],
-    #         [0] * 7
+    #         bodyUniqueId=self.sim._bodies_idx[self.body_name],
+    #         linkIndex=self.ee_link,
+    #         localPosition=com_trn,
+    #         objPositions=mpos,
+    #         objVelocities=zero_vec,
+    #         objAccelerations=zero_vec
     #     )
+    #     J_trans, J_rot = J
     #     return J
