@@ -2,7 +2,7 @@ import os
 import time
 import warnings
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, Tuple, List
 
 import numpy as np
 import pybullet as p
@@ -23,7 +23,8 @@ class PyBullet:
     """
 
     def __init__(
-        self, render: bool = False, n_substeps: int = 20, background_color: np.ndarray = np.array([223.0, 54.0, 45.0])
+            self, render: bool = False, n_substeps: int = 20,
+            background_color: np.ndarray = np.array([223.0, 54.0, 45.0])
     ) -> None:
         self.background_color = background_color.astype(np.float64) / 255
         options = "--background_color_red={} \
@@ -34,7 +35,8 @@ class PyBullet:
         self.connection_mode = p.GUI if render else p.DIRECT
         self.physics_client = bc.BulletClient(connection_mode=self.connection_mode, options=options)
         self.physics_client.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
-        self.physics_client.configureDebugVisualizer(p.COV_ENABLE_MOUSE_PICKING, 0)
+        if not render:
+            self.physics_client.configureDebugVisualizer(p.COV_ENABLE_MOUSE_PICKING, 0)
 
         self.n_substeps = n_substeps
         self.timestep = 1.0 / 500
@@ -59,15 +61,15 @@ class PyBullet:
         self.physics_client.disconnect()
 
     def render(
-        self,
-        mode: str = "human",
-        width: int = 720,
-        height: int = 480,
-        target_position: np.ndarray = np.zeros(3),
-        distance: float = 1.4,
-        yaw: float = 45,
-        pitch: float = -30,
-        roll: float = 0,
+            self,
+            mode: str = "human",
+            width: int = 720,
+            height: int = 480,
+            target_position: np.ndarray = np.zeros(3),
+            distance: float = 1.4,
+            yaw: float = 45,
+            pitch: float = -30,
+            roll: float = 0,
     ) -> Optional[np.ndarray]:
         """Render.
 
@@ -189,6 +191,55 @@ class PyBullet:
         angular_velocity = self.physics_client.getBaseVelocity(self._bodies_idx[body])[1]
         return np.array(angular_velocity)
 
+    def get_link_state(self, body: str, link: int) \
+            -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Args:
+            body (str): Body unique name.
+            link (int): Link index in the body.
+
+        Returns:
+            FROM QUICKSTART GUIDE:
+        link_trn, link_rot, com_trn, com_rot, frame_pos, frame_rot, link_vt, link_vr = link_state
+        link_trn    =   linkWorldPosition               (Cartesian position of center of mass)
+        link_rot    =   linkWorldOrientation            (Cartesian orientation of center of mass, in
+                                                        quaternion [x,y,z,w])
+        com_trn     =   localInertialFramePosition      (local position offset of inertial frame (center of mass)
+                                                        expressed in the URDF link frame)
+        com_rot     =   localInertialFrameOrientation   (local orientation (quaternion [x,y,z,w]) offset of the inertial
+                                                        frame expressed in URDF link frame.)
+        frame_pos   =   worldLinkFramePosition          (world position of the URDF link frame)
+        frame_rot   =   worldLinkFrameOrientation       (world orientation of the URDF link frame)
+        link_vt     =   worldLinkLinearVelocity         (Cartesian world velocity. Only returned if computeLinkVelocity
+                                                        non-zero)
+        link_vr     =   worldLinkAngularVelocity        (Cartesian world velocity. Only returned if computeLinkVelocity
+                                                        non-zero)
+
+            FROM PYBULLET DOC:
+            Provides extra information such as the Cartesian world coordinates center of mass (COM) of the link,
+            relative to the world reference frame.
+        position_linkcom_world, world_rotation_linkcom,
+        position_linkcom_frame, frame_rotation_linkcom,
+        position_frame_world, world_rotation_frame,
+        linearVelocity_linkcom_world, angularVelocity_linkcom_world
+        = getLinkState(
+                objectUniqueId,
+                linkIndex,
+                computeLinkVelocity=0,
+                computeForwardKinematics=0,
+                physicsClientId=0
+            )
+        """
+        link_state = self.physics_client.getLinkState(
+            bodyUniqueId=self._bodies_idx[body],
+            linkIndex=link,
+            computeLinkVelocity=1,
+            computeForwardKinematics=1
+        )
+        link_trn, link_rot, com_trn, com_rot, frame_pos, frame_rot, link_vt, link_vr = link_state
+        return np.array(link_trn), np.array(link_rot), np.array(com_trn), np.array(com_rot), np.array(
+            frame_pos), np.array(frame_rot), np.array(link_vt), np.array(link_vr)
+
     def get_link_position(self, body: str, link: int) -> np.ndarray:
         """Get the position of the link of the body.
 
@@ -265,6 +316,68 @@ class PyBullet:
         """
         return self.physics_client.getJointState(self._bodies_idx[body], joint)[1]
 
+    def get_joint_states(self, body: str, joints: List[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Get the joint states (position, velocity and torques) of the joint of the body.
+        Args:
+            body (str): Body unique name.
+            joints (list of int): Joint indices in the body
+
+        Returns:
+            float: The velocity.
+        """
+
+        joint_states = self.physics_client.getJointStates(self._bodies_idx[body], joints)
+        joint_positions = [state[0] for state in joint_states]
+        joint_velocities = [state[1] for state in joint_states]
+        joint_torques = [state[3] for state in joint_states]
+        return np.array(joint_positions), np.array(joint_velocities), np.array(joint_torques)
+
+    def get_joint_info(self, body: str, joints: List[int]) -> List[Tuple]:
+        """
+
+        Args:
+            body (str): Body unique name.
+            joints (list of int): Joint indices in the body
+
+        Returns:
+            jointIndex:         the same joint index as the input parameter
+            jointName:          the name of the joint, as specified in the URDF (or SDF etc) file
+            jointType:          type of the joint, this also implies the number of position and velocity variables.
+            qIndex:             the first position index in the positional state variables for this body
+            uIndex:             the first velocity index in the velocity state variables for this body
+            and more...
+        """
+        joint_infos = [self.physics_client.getJointInfo(self._bodies_idx[body], i) for i in joints]
+        return joint_infos
+
+    def get_motor_joint_states(self, body: str, joints: List[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        This function is very closely adapted from the PyBullet examples. Can be found under
+        https://github.com/bulletphysics/bullet3/blob/master/examples/pybullet/examples/jacobian.py
+        Inside the Bullet repository: bullet3/examples/pybullet/examples/jacobian.py
+        Args:
+            body (str): Body unique name.
+            joints (list of int): Joint indices in the body
+
+        Returns: motor joint_positions, joint_velocities, joint_torques
+
+        """
+        """
+        getJointStates output:
+        jointPosition:              The position value of this joint.
+        jointVelocity:              The velocity value of this joint.
+        jointReactionForces:        These are the joint reaction forces, if a torque sensor is enabled for this joint it
+                                    is [Fx, Fy, Fz, Mx, My, Mz]. Without torque sensor, it is [0,0,0,0,0,0].
+        appliedJointMotorTorque:    This is the motor torque applied during the last stepSimulation
+        """
+        joint_states_all = self.physics_client.getJointStates(self._bodies_idx[body], joints)
+        joint_infos = self.get_joint_info(body, joints)
+        joint_states = [j for j, i in zip(joint_states_all, joint_infos) if i[3] > -1]
+        joint_positions = [state[0] for state in joint_states]
+        joint_velocities = [state[1] for state in joint_states]
+        joint_torques = [state[3] for state in joint_states]
+        return np.array(joint_positions), np.array(joint_velocities), np.array(joint_torques)
+
     def set_base_pose(self, body: str, position: np.ndarray, orientation: np.ndarray) -> None:
         """Set the position of the body.
 
@@ -317,7 +430,8 @@ class PyBullet:
             forces=forces,
         )
 
-    def velocity_control_joints(self, body: str, joints: np.ndarray, target_velocity: np.ndarray, forces: np.ndarray) -> None:
+    def velocity_control_joints(self, body: str, joints: np.ndarray, target_velocity: np.ndarray,
+                                forces: np.ndarray) -> None:
         """Control the joints motor.
 
         Args:
@@ -368,6 +482,46 @@ class PyBullet:
         )
         return np.array(joint_state)
 
+    def calculate_jacobian(
+            self,
+            body: str,
+            link: int,
+            local_position: list,
+            obj_positions: list,
+            obj_velocities: list,
+            obj_accelerations: list
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+            calculateJacobian requires:
+        bodyUniqueId int                body unique id, as returned by loadURDF etc.
+        linkIndex int                   link index for the jacobian.
+        localPosition list of float     the point on the specified link to compute the jacobian for, in
+                                        link local coordinates around its center of mass.
+        objPositions list of float      joint positions (angles)
+        objVelocities list of float     joint velocities
+        objAccelerations list of float  desired joint accelerations
+
+        Args:
+            body:
+            link:
+            local_position:
+            obj_positions:
+            obj_velocities:
+            obj_accelerations:
+
+        Returns:
+
+        """
+        J_trans, J_rot = self.physics_client.calculateJacobian(
+            bodyUniqueId=self._bodies_idx[body],
+            linkIndex=link,
+            localPosition=local_position,
+            objPositions=obj_positions,
+            objVelocities=obj_velocities,
+            objAccelerations=obj_accelerations
+        )
+        return np.array(J_trans), np.array(J_rot)
+
     def place_visualizer(self, target_position: np.ndarray, distance: float, yaw: float, pitch: float) -> None:
         """Orient the camera used for rendering.
 
@@ -400,17 +554,17 @@ class PyBullet:
         self._bodies_idx[body_name] = self.physics_client.loadURDF(**kwargs)
 
     def create_box(
-        self,
-        body_name: str,
-        half_extents: np.ndarray,
-        mass: float,
-        position: np.ndarray,
-        rgba_color: Optional[np.ndarray] = np.ones(4),
-        specular_color: np.ndarray = np.zeros(3),
-        ghost: bool = False,
-        lateral_friction: Optional[float] = None,
-        spinning_friction: Optional[float] = None,
-        texture: Optional[str] = None,
+            self,
+            body_name: str,
+            half_extents: np.ndarray,
+            mass: float,
+            position: np.ndarray,
+            rgba_color: Optional[np.ndarray] = np.ones(4),
+            specular_color: np.ndarray = np.zeros(3),
+            ghost: bool = False,
+            lateral_friction: Optional[float] = None,
+            spinning_friction: Optional[float] = None,
+            texture: Optional[str] = None,
     ) -> None:
         """Create a box.
 
@@ -451,17 +605,17 @@ class PyBullet:
             self.physics_client.changeVisualShape(self._bodies_idx[body_name], -1, textureUniqueId=texture_uid)
 
     def create_cylinder(
-        self,
-        body_name: str,
-        radius: float,
-        height: float,
-        mass: float,
-        position: np.ndarray,
-        rgba_color: Optional[np.ndarray] = np.zeros(4),
-        specular_color: np.ndarray = np.zeros(3),
-        ghost: bool = False,
-        lateral_friction: Optional[float] = None,
-        spinning_friction: Optional[float] = None,
+            self,
+            body_name: str,
+            radius: float,
+            height: float,
+            mass: float,
+            position: np.ndarray,
+            rgba_color: Optional[np.ndarray] = np.zeros(4),
+            specular_color: np.ndarray = np.zeros(3),
+            ghost: bool = False,
+            lateral_friction: Optional[float] = None,
+            spinning_friction: Optional[float] = None,
     ) -> None:
         """Create a cylinder.
 
@@ -499,16 +653,16 @@ class PyBullet:
         )
 
     def create_sphere(
-        self,
-        body_name: str,
-        radius: float,
-        mass: float,
-        position: np.ndarray,
-        rgba_color: Optional[np.ndarray] = np.zeros(4),
-        specular_color: np.ndarray = np.zeros(3),
-        ghost: bool = False,
-        lateral_friction: Optional[float] = None,
-        spinning_friction: Optional[float] = None,
+            self,
+            body_name: str,
+            radius: float,
+            mass: float,
+            position: np.ndarray,
+            rgba_color: Optional[np.ndarray] = np.zeros(4),
+            specular_color: np.ndarray = np.zeros(3),
+            ghost: bool = False,
+            lateral_friction: Optional[float] = None,
+            spinning_friction: Optional[float] = None,
     ) -> None:
         """Create a sphere.
 
@@ -544,16 +698,16 @@ class PyBullet:
         )
 
     def _create_geometry(
-        self,
-        body_name: str,
-        geom_type: int,
-        mass: float = 0.0,
-        position: np.ndarray = np.zeros(3),
-        ghost: bool = False,
-        lateral_friction: Optional[float] = None,
-        spinning_friction: Optional[float] = None,
-        visual_kwargs: Dict[str, Any] = {},
-        collision_kwargs: Dict[str, Any] = {},
+            self,
+            body_name: str,
+            geom_type: int,
+            mass: float = 0.0,
+            position: np.ndarray = np.zeros(3),
+            ghost: bool = False,
+            lateral_friction: Optional[float] = None,
+            spinning_friction: Optional[float] = None,
+            visual_kwargs: Dict[str, Any] = {},
+            collision_kwargs: Dict[str, Any] = {},
     ) -> None:
         """Create a geometry.
 
@@ -603,13 +757,13 @@ class PyBullet:
         )
 
     def create_table(
-        self,
-        length: float,
-        width: float,
-        height: float,
-        x_offset: float = 0.0,
-        lateral_friction: Optional[float] = None,
-        spinning_friction: Optional[float] = None,
+            self,
+            length: float,
+            width: float,
+            height: float,
+            x_offset: float = 0.0,
+            lateral_friction: Optional[float] = None,
+            spinning_friction: Optional[float] = None,
     ) -> None:
         """Create a fixed table. Top is z=0, centered in y.
 
