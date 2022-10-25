@@ -24,12 +24,14 @@ class Panda(PyBulletRobot):
             base_position: np.ndarray = np.array([0.0, 0.0, 0.0]),
             control_type: str = "ee",
             velocity_control: bool = False,
+            velocity_control_scaling: float = 1.0,
             redundancy_resolution: bool = False,
             redundancy_resolution_scaling: float = 1.0
     ) -> None:
         self.block_gripper = block_gripper
         self.control_type = control_type
         self.velocity_control = velocity_control
+        self.velocity_control_scaling = velocity_control_scaling
         self.use_redundancy_resolution = redundancy_resolution
         self.redundancy_resolution_scaling = redundancy_resolution_scaling
         self.num_joints_arm = 7
@@ -61,7 +63,7 @@ class Panda(PyBulletRobot):
             if self.control_type == "ee":
                 raise NotImplementedError("Velocity control is not supported in EE control atm.")
             else:
-                arm_joint_ctrl = action[:self.num_joints_arm]
+                arm_joint_ctrl = self.velocity_control_scaling * action[:self.num_joints_arm]
                 if self.use_redundancy_resolution:
                     qdot_nullspace = self.resolve_redundancy(
                         q_reference=self.neutral_joint_values[:self.num_joints_arm],
@@ -200,7 +202,8 @@ class Panda(PyBulletRobot):
         )
         return J_trans, J_rot
 
-    def resolve_redundancy(self, q_reference: np.ndarray, scaling_factor: float = 1.0) -> np.ndarray:
+    def resolve_redundancy(self, q_reference: np.ndarray, scaling_factor: float = 1.0,
+                           use_jac_rot: bool = False) -> np.ndarray:
         """
         Resolve redundancy be generating a nullspace vector (joint velocity in Jacobians nullspace) to move
         the robot towards a reference config without moving the EE POSITION (orientation DOES change).
@@ -213,10 +216,16 @@ class Panda(PyBulletRobot):
 
         J_trans, J_rot = self.get_jacobian()
         J_trans = J_trans[:, :self.num_joints_arm]
+        J_rot = J_rot[:, :self.num_joints_arm]
+
+        if use_jac_rot:
+            J = np.concatenate([J_trans, J_rot])
+        else:
+            J = J_trans
 
         # Calculate qdot_nullspace = -scaling * (I-J^+*J)b
-        J_plus = np.linalg.pinv(J_trans)
-        nullspace_projector = np.identity(self.num_joints_arm) - np.matmul(J_plus, J_trans)
+        J_plus = np.linalg.pinv(J)
+        nullspace_projector = np.identity(self.num_joints_arm) - np.matmul(J_plus, J)
 
         # current joint config q:
         q = np.array([self.get_joint_angle(i) for i in self.joint_indices[:self.num_joints_arm]])
