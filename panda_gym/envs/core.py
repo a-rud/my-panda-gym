@@ -20,14 +20,14 @@ class PyBulletRobot(ABC):
     """
 
     def __init__(
-        self,
-        sim: PyBullet,
-        body_name: str,
-        file_name: str,
-        base_position: np.ndarray,
-        action_space: gym.spaces.Space,
-        joint_indices: np.ndarray,
-        joint_forces: np.ndarray,
+            self,
+            sim: PyBullet,
+            body_name: str,
+            file_name: str,
+            base_position: np.ndarray,
+            action_space: gym.spaces.Space,
+            joint_indices: np.ndarray,
+            joint_forces: np.ndarray,
     ) -> None:
         self.sim = sim
         self.body_name = body_name
@@ -169,7 +169,8 @@ class PyBulletRobot(ABC):
         Returns:
             List of joint values.
         """
-        inverse_kinematics = self.sim.inverse_kinematics(self.body_name, link=link, position=position, orientation=orientation)
+        inverse_kinematics = self.sim.inverse_kinematics(self.body_name, link=link, position=position,
+                                                         orientation=orientation)
         return inverse_kinematics
 
 
@@ -178,6 +179,11 @@ class Task(ABC):
     Args:
         sim (PyBullet): Simulation instance.
     """
+
+    default_view = {'target_position': np.zeros(3), 'distance': 0.9, 'yaw': 45, 'pitch': -30}
+    angle_view = {'target_position': np.array([0., 0., 0.25]), 'distance': 0.5, 'yaw': 45, 'pitch': -20}
+    front_view = {'target_position': np.array([0., 0., 0.25]), 'distance': 0.4, 'yaw': 90, 'pitch': -10}
+    side_view = {'target_position': np.array([-0.2, 0., 0.35]), 'distance': 0.5, 'yaw': 0, 'pitch': -10}
 
     def __init__(self, sim: PyBullet) -> None:
         self.sim = sim
@@ -216,13 +222,13 @@ class Task(ABC):
 
     @abstractmethod
     def is_success(
-        self, achieved_goal: np.ndarray, desired_goal: np.ndarray, info: Dict[str, Any] = {}
+            self, achieved_goal: np.ndarray, desired_goal: np.ndarray, info: Dict[str, Any] = {}
     ) -> Union[np.ndarray, float]:
         """Returns whether the achieved goal match the desired goal."""
 
     @abstractmethod
     def compute_reward(
-        self, achieved_goal: np.ndarray, desired_goal: np.ndarray, info: Dict[str, Any] = {}
+            self, achieved_goal: np.ndarray, desired_goal: np.ndarray, info: Dict[str, Any] = {}
     ) -> Union[np.ndarray, float]:
         """Compute reward associated to the achieved and the desired goal."""
 
@@ -292,15 +298,15 @@ class RobotTaskEnv(gym.GoalEnv):
         self.sim.close()
 
     def render(
-        self,
-        mode: str,
-        width: int = 720,
-        height: int = 480,
-        target_position: np.ndarray = np.zeros(3),
-        distance: float = 1.4,
-        yaw: float = 45,
-        pitch: float = -30,
-        roll: float = 0,
+            self,
+            mode: str,
+            width: int = 720,
+            height: int = 480,
+            target_position: np.ndarray = np.zeros(3),
+            distance: float = 1.4,
+            yaw: float = 45,
+            pitch: float = -30,
+            roll: float = 0,
     ) -> Optional[np.ndarray]:
         """Render.
 
